@@ -3,7 +3,7 @@
 define('DB_HOST', 'localhost:3306');
 define('DB_NAME', 'ecole');
 define('DB_USER', 'root');
-define('DB_PASS', 'root');
+define('DB_PASS', '');
 
 // Chemins d'accès
 define('UPLOAD_DIR', __DIR__ . '/uploads/eleves/');
