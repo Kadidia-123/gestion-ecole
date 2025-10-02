@@ -73,7 +73,7 @@ if ($_POST['action'] ?? '' == 'add_note') {
         $_SESSION['message'] = ['type' => 'error', 'text' => 'Erreur lors de l\'ajout de la note: ' . $e->getMessage()];
     }
     
-    header("Location: gestion_notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $eleve_id . "&matiere_id=" . $matiere_id . "&annee=" . $annee_scolaire);
+    header("Location: notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $eleve_id . "&matiere_id=" . $matiere_id . "&annee=" . $annee_scolaire);
     exit;
 }
 
@@ -99,7 +99,7 @@ if ($_POST['action'] ?? '' == 'edit_note') {
         $_SESSION['message'] = ['type' => 'error', 'text' => 'Erreur lors de la modification: ' . $e->getMessage()];
     }
     
-    header("Location: gestion_notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $eleve_id . "&matiere_id=" . $matiere_id . "&annee=" . $annee_scolaire);
+    header("Location: notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $eleve_id . "&matiere_id=" . $matiere_id . "&annee=" . $annee_scolaire);
     exit;
 }
 
@@ -121,14 +121,14 @@ if ($_GET['action'] ?? '' == 'delete_note') {
             
             $_SESSION['message'] = ['type' => 'success', 'text' => 'Note supprimée avec succès!'];
             
-            header("Location: gestion_notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $note_info['eleve_id'] . "&matiere_id=" . $note_info['matiere_id'] . "&annee=" . $note_info['annee_scolaire']);
+            header("Location: notes.php?classe=" . ($_GET['classe'] ?? '') . "&eleve_id=" . $note_info['eleve_id'] . "&matiere_id=" . $note_info['matiere_id'] . "&annee=" . $note_info['annee_scolaire']);
         } else {
-            header("Location: gestion_notes.php");
+            header("Location: notes.php");
         }
         exit;
     } catch (Exception $e) {
         $_SESSION['message'] = ['type' => 'error', 'text' => 'Erreur lors de la suppression: ' . $e->getMessage()];
-        header("Location: gestion_notes.php");
+        header("Location: notes.php");
         exit;
     }
 }
@@ -651,7 +651,7 @@ if (isset($_SESSION['message'])) {
 
         <div class="nav">
             <a href="dashboard.php"><i class="fas fa-tachometer-alt"></i> Tableau de Bord</a>
-            <a href="gestion_notes.php" class="active"><i class="fas fa-edit"></i> Gestion des Notes</a>
+            <a href="notes.php" class="active"><i class="fas fa-edit"></i> Gestion des Notes</a>
             <a href="bulletin.php"><i class="fas fa-scroll"></i> Bulletins</a>
             <a href="eleves.php"><i class="fas fa-users"></i> Élèves</a>
         </div>
@@ -850,7 +850,7 @@ if (isset($_SESSION['message'])) {
                         </button>
                         
                         <?php if ($note_a_editer): ?>
-                            <a href="gestion_notes.php?classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>" 
+                            <a href="notes.php?classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>" 
                                class="btn btn-secondary">
                                 <i class="fas fa-times"></i> Annuler
                             </a>
@@ -920,11 +920,11 @@ if (isset($_SESSION['message'])) {
                                     <td style="text-align: left; max-width: 200px;"><?= htmlspecialchars($note['commentaire']) ?></td>
                                     <td>
                                         <div class="action-buttons">
-                                            <a href="gestion_notes.php?classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>&edit_note_id=<?= $note['id'] ?>" 
+                                            <a href="notes.php?classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>&edit_note_id=<?= $note['id'] ?>" 
                                                class="btn btn-warning btn-sm">
                                                 <i class="fas fa-edit"></i> Modifier
                                             </a>
-                                            <a href="gestion_notes.php?action=delete_note&note_id=<?= $note['id'] ?>&classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>" 
+                                            <a href="notes.php?action=delete_note&note_id=<?= $note['id'] ?>&classe=<?= $classe_id ?>&eleve_id=<?= $eleve_id ?>&matiere_id=<?= $matiere_id ?>&annee=<?= $annee_scolaire ?>" 
                                                class="btn btn-danger btn-sm"
                                                onclick="return confirm('Êtes-vous sûr de vouloir supprimer cette note ? Cette action est irréversible.')">
                                                 <i class="fas fa-trash"></i> Supprimer

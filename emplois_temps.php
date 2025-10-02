@@ -358,6 +358,7 @@ $emploisTemps_data = &$_SESSION['emplois_temps_data'];
 $action = isset($_GET['action']) ? $_GET['action'] : 'list';
 $id = isset($_GET['id']) ? $_GET['id'] : null;
 $classe_id = isset($_GET['classe_id']) ? $_GET['classe_id'] : null;
+$jour_from_get = isset($_GET['jour']) ? $_GET['jour'] : null;
 
 // Traitement du formulaire d'ajout/modification
 if ($_POST && isset($_POST['classe_id'])) {
@@ -369,9 +370,25 @@ if ($_POST && isset($_POST['classe_id'])) {
     $matiere_id = $_POST['matiere_id'];
     $enseignant_id = $_POST['enseignant_id'];
     
-    // Validation basique
-    if (empty($classe_id) || empty($jour) || empty($heure_debut) || empty($heure_fin) || empty($matiere_id) || empty($enseignant_id)) {
-        $_SESSION['message'] = "Tous les champs sont obligatoires!";
+    // Validation basique - vérifier que tous les champs sont remplis
+    $champs_manquants = [];
+    if (empty($classe_id)) $champs_manquants[] = "Classe";
+    if (empty($jour)) $champs_manquants[] = "Jour";
+    if (empty($heure_debut)) $champs_manquants[] = "Heure de début";
+    if (empty($heure_fin)) $champs_manquants[] = "Heure de fin";
+    if (empty($matiere_id)) $champs_manquants[] = "Matière";
+    if (empty($enseignant_id)) $champs_manquants[] = "Enseignant";
+    
+    if (!empty($champs_manquants)) {
+        $_SESSION['message'] = "Champs obligatoires manquants : " . implode(", ", $champs_manquants) . " !";
+        $_SESSION['message_type'] = "danger";
+        header("Location: emplois_temps.php");
+        exit();
+    }
+    
+    // Vérifier la cohérence des horaires
+    if ($heure_debut >= $heure_fin) {
+        $_SESSION['message'] = "L'heure de début doit être antérieure à l'heure de fin !";
         $_SESSION['message_type'] = "danger";
         header("Location: emplois_temps.php");
         exit();
@@ -692,6 +709,8 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                             $creneaux_disponibles_form = [];
                             if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                 $creneaux_disponibles_form = $emploisTemps->getCreneauxDisponibles($_POST['classe_id'], $_POST['jour']);
+                            } elseif ($classe_id && $jour_from_get) {
+                                $creneaux_disponibles_form = $emploisTemps->getCreneauxDisponibles($classe_id, $jour_from_get);
                             } elseif ($cours_data) {
                                 $creneaux_disponibles_form = $emploisTemps->getCreneauxDisponibles($cours_data['classe_id'], $cours_data['jour']);
                             }
@@ -748,7 +767,8 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                             <?php foreach ($classes as $key => $value): ?>
                                                 <option value="<?php echo $key; ?>" 
                                                     <?php echo ($cours_data && $cours_data['classe_id'] == $key) ? 'selected' : ''; ?>
-                                                    <?php echo (isset($_POST['classe_id']) && $_POST['classe_id'] == $key) ? 'selected' : ''; ?>>
+                                                    <?php echo (isset($_POST['classe_id']) && $_POST['classe_id'] == $key) ? 'selected' : ''; ?>
+                                                    <?php echo ($classe_id && $classe_id == $key) ? 'selected' : ''; ?>>
                                                     <?php echo $value; ?>
                                                 </option>
                                             <?php endforeach; ?>
@@ -762,7 +782,8 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                             <?php foreach ($jours as $jour): ?>
                                                 <option value="<?php echo $jour; ?>" 
                                                     <?php echo ($cours_data && $cours_data['jour'] == $jour) ? 'selected' : ''; ?>
-                                                    <?php echo (isset($_POST['jour']) && $_POST['jour'] == $jour) ? 'selected' : ''; ?>>
+                                                    <?php echo (isset($_POST['jour']) && $_POST['jour'] == $jour) ? 'selected' : ''; ?>
+                                                    <?php echo ($jour_from_get && $jour_from_get == $jour) ? 'selected' : ''; ?>>
                                                     <?php echo $jour; ?>
                                                 </option>
                                             <?php endforeach; ?>
@@ -783,7 +804,7 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                             ];
                                             foreach ($creneaux_list as $heure => $label): 
                                                 $disponible = true;
-                                                if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
+                                                if ((isset($_POST['classe_id']) && isset($_POST['jour'])) || ($classe_id && $jour_from_get)) {
                                                     $disponible = in_array($heure, array_keys($creneaux_disponibles_form));
                                                 }
                                             ?>
@@ -850,7 +871,7 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                         <i class="fas fa-arrow-left me-1"></i>Retour
                                     </a>
                                     <button type="button" class="btn btn-info" onclick="actualiserDisponibilite()">
-                                        <i class="fas fa-sync-alt me-1"></i>Actualiser les disponibilités
+                                        <i class="fas fa-sync-alt me-1"></i>Voir les créneaux disponibles
                                     </button>
                                 </div>
                             </form>
@@ -1082,29 +1103,52 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
             const jourSelect = document.getElementById('jourSelect');
             
             if (classeSelect.value && jourSelect.value) {
-                document.getElementById('coursForm').submit();
+                // Utiliser une approche plus douce - juste recharger la page avec les paramètres
+                const url = new URL(window.location);
+                url.searchParams.set('classe_id', classeSelect.value);
+                url.searchParams.set('jour', jourSelect.value);
+                url.searchParams.set('action', 'add');
+                window.location.href = url.toString();
             } else {
                 alert('Veuillez d\'abord sélectionner une classe et un jour');
             }
         }
 
-        // Mettre à jour les disponibilités quand la classe ou le jour change
-        document.getElementById('classeSelect')?.addEventListener('change', function() {
+        // Validation du formulaire avant soumission
+        document.getElementById('coursForm')?.addEventListener('submit', function(e) {
+            const classeSelect = document.getElementById('classeSelect');
             const jourSelect = document.getElementById('jourSelect');
-            if (this.value && jourSelect.value) {
-                setTimeout(() => {
-                    document.getElementById('coursForm').submit();
-                }, 500);
+            const heureDebutSelect = document.getElementById('heureDebutSelect');
+            const heureFinSelect = document.getElementById('heureFinSelect');
+            const matiereSelect = document.querySelector('select[name="matiere_id"]');
+            const enseignantSelect = document.querySelector('select[name="enseignant_id"]');
+            
+            // Vérifier que tous les champs obligatoires sont remplis
+            if (!classeSelect.value || !jourSelect.value || !heureDebutSelect.value || 
+                !heureFinSelect.value || !matiereSelect.value || !enseignantSelect.value) {
+                e.preventDefault();
+                alert('Tous les champs sont obligatoires ! Veuillez remplir tous les champs avant de soumettre.');
+                return false;
+            }
+            
+            // Vérifier la cohérence des horaires
+            if (heureDebutSelect.value >= heureFinSelect.value) {
+                e.preventDefault();
+                alert('L\'heure de début doit être antérieure à l\'heure de fin !');
+                return false;
             }
         });
 
+        // Mettre à jour les disponibilités quand la classe ou le jour change
+        // Désactiver la soumission automatique pour éviter les problèmes
+        document.getElementById('classeSelect')?.addEventListener('change', function() {
+            // Ne pas soumettre automatiquement, juste permettre la sélection
+            console.log('Classe sélectionnée:', this.value);
+        });
+        
         document.getElementById('jourSelect')?.addEventListener('change', function() {
-            const classeSelect = document.getElementById('classeSelect');
-            if (this.value && classeSelect.value) {
-                setTimeout(() => {
-                    document.getElementById('coursForm').submit();
-                }, 500);
-            }
+            // Ne pas soumettre automatiquement, juste permettre la sélection
+            console.log('Jour sélectionné:', this.value);
         });
 
         // Synchroniser heure de début et heure de fin
