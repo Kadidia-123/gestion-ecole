@@ -1,27 +1,98 @@
 <?php
 // =============================================
-// CONFIGURATION DE LA BASE DE DONNÉES
+// CONFIGURATION ET CONNEXION À LA BASE DE DONNÉES
 // =============================================
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'ecole');
-define('DB_PORT', '3306'); // Port MySQL par défaut
+session_start();
+require_once 'config.php';
 
-// =============================================
-// CONNEXION À LA BASE DE DONNÉES
-// =============================================
+// Variables pour les statistiques
+$total_enseignants = 0;
+$total_matieres = 0;
+$total_attributions = 0;
+$enseignants = [];
+$matieres = [];
+$attributions = [];
+
 try {
-    $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT);
+    // Récupérer le nombre total d'enseignants
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM enseignants");
+    $total_enseignants = $stmt->fetch()['total'];
     
-    if ($conn->connect_errno) {
-        throw new Exception("Échec de la connexion à MySQL: " . $conn->connect_error);
+    // Récupérer le nombre total de matières
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM matieres");
+    $total_matieres = $stmt->fetch()['total'];
+    
+    // Récupérer le nombre total d'attributions
+    $stmt = $pdo->query("SELECT COUNT(*) as total FROM attribution_cours");
+    $total_attributions = $stmt->fetch()['total'];
+    
+    // Récupérer la liste des enseignants
+    $stmt = $pdo->query("SELECT id, nom, prenom FROM enseignants ORDER BY nom");
+    $enseignants = $stmt->fetchAll();
+    
+    // Récupérer la liste des matières
+    $stmt = $pdo->query("SELECT id, nom FROM matieres ORDER BY nom");
+    $matieres = $stmt->fetchAll();
+    
+    // Récupérer les attributions avec les noms des enseignants et matières
+    $stmt = $pdo->query("
+        SELECT a.id, a.date_attribution,
+               CONCAT(e.nom, ' ', e.prenom) as enseignant_nom,
+               m.nom as matiere_nom
+        FROM attribution_cours a
+        JOIN enseignants e ON a.enseignant_id = e.id
+        JOIN matieres m ON a.matiere_id = m.id
+        ORDER BY a.date_attribution DESC
+    ");
+    $attributions = $stmt->fetchAll();
+    
+} catch (PDOException $e) {
+    $error_message = "Erreur de base de données : " . $e->getMessage();
+}
+
+// Traitement des formulaires
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['action'])) {
+        switch ($_POST['action']) {
+            case 'add':
+                try {
+                    $enseignant_id = $_POST['enseignant_id'];
+                    $matiere_id = $_POST['matiere_id'];
+                    
+                    // Vérifier si l'attribution existe déjà
+                    $stmt = $pdo->prepare("SELECT id FROM attribution_cours WHERE enseignant_id = ? AND matiere_id = ?");
+                    $stmt->execute([$enseignant_id, $matiere_id]);
+                    
+                    if ($stmt->fetch()) {
+                        $error_message = "Cette attribution existe déjà.";
+                    } else {
+                        // Ajouter l'attribution
+                        $stmt = $pdo->prepare("INSERT INTO attribution_cours (enseignant_id, matiere_id, date_attribution) VALUES (?, ?, NOW())");
+                        $stmt->execute([$enseignant_id, $matiere_id]);
+                        
+                        // Rediriger pour éviter la resoumission
+                        header('Location: attribution_cours.php?success=1');
+                        exit();
+                    }
+                } catch (PDOException $e) {
+                    $error_message = "Erreur lors de l'ajout : " . $e->getMessage();
+                }
+                break;
+                
+            case 'delete':
+                try {
+                    $id = $_POST['id'];
+                    $stmt = $pdo->prepare("DELETE FROM attribution_cours WHERE id = ?");
+                    $stmt->execute([$id]);
+                    
+                    header('Location: attribution_cours.php?deleted=1');
+                    exit();
+                } catch (PDOException $e) {
+                    $error_message = "Erreur lors de la suppression : " . $e->getMessage();
+                }
+                break;
+        }
     }
-    
-    $conn->set_charset("utf8mb4");
-    
-} catch (Exception $e) {
-    $error_message = $e->getMessage();
 }
 ?>
 
@@ -410,29 +481,59 @@ try {
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
                 <div class="stats-box">
-                    <div class="stats-number">12</div>
+                    <div class="stats-number"><?= $total_enseignants ?></div>
                     <div class="stats-label">Enseignants</div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
                 <div class="stats-box">
-                    <div class="stats-number">8</div>
+                    <div class="stats-number"><?= $total_matieres ?></div>
                     <div class="stats-label">Matières</div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
                 <div class="stats-box">
-                    <div class="stats-number">24</div>
+                    <div class="stats-number"><?= $total_attributions ?></div>
                     <div class="stats-label">Attributions</div>
                 </div>
             </div>
             <div class="col-md-3 mb-3">
                 <div class="stats-box">
-                    <div class="stats-number">96%</div>
+                    <div class="stats-number"><?= $total_enseignants > 0 ? round(($total_attributions / ($total_enseignants * $total_matieres)) * 100) : 0 ?>%</div>
                     <div class="stats-label">Cours couverts</div>
                 </div>
             </div>
         </div>
+        
+        <?php if (isset($error_message)): ?>
+            <div class="alert alert-danger d-flex align-items-center">
+                <i class="fas fa-exclamation-circle me-3 fa-2x"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Erreur</h5>
+                    <p class="mb-0"><?= htmlspecialchars($error_message) ?></p>
+                </div>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (isset($_GET['success'])): ?>
+            <div class="alert alert-success d-flex align-items-center">
+                <i class="fas fa-check-circle me-3 fa-2x"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Succès</h5>
+                    <p class="mb-0">L'attribution a été ajoutée avec succès.</p>
+                </div>
+            </div>
+        <?php endif; ?>
+        
+        <?php if (isset($_GET['deleted'])): ?>
+            <div class="alert alert-info d-flex align-items-center">
+                <i class="fas fa-info-circle me-3 fa-2x"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Information</h5>
+                    <p class="mb-0">L'attribution a été supprimée avec succès.</p>
+                </div>
+            </div>
+        <?php endif; ?>
         
         <div class="alert alert-info d-flex align-items-center">
             <i class="fas fa-lightbulb me-3 fa-2x"></i>
@@ -452,19 +553,15 @@ try {
                         </div>
                     </div>
                     <div class="card-body">
-                        <form id="attributionForm">
+                        <form method="POST" id="attributionForm">
+                            <input type="hidden" name="action" value="add">
                             <div class="mb-3">
                                 <label class="form-label fw-semibold">Enseignant</label>
                                 <select name="enseignant_id" class="form-select" required>
                                     <option value="">Sélectionnez un enseignant</option>
-                                    <option value="1">Dr. Timbo</option>
-                                    <option value="2">Prof. Oumou Cisse</option>
-                                    <option value="3">Dr. Salim Traore</option>
-                                    <option value="4">Prof. Ibrahima Kone</option>
-                                    <option value="5">Dr. Moussa Sogoba</option>
-                                    <option value="6">Prof. Aizidini Toure</option>
-                                    <option value="7">Prof. Issou Traore</option>
-                                    <option value="8">Prof. Kadi Coulibaly</option>
+                                    <?php foreach ($enseignants as $enseignant): ?>
+                                        <option value="<?= $enseignant['id'] ?>"><?= htmlspecialchars($enseignant['nom'] . ' ' . $enseignant['prenom']) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             
@@ -472,19 +569,14 @@ try {
                                 <label class="form-label fw-semibold">Matière</label>
                                 <select name="matiere_id" class="form-select" required>
                                     <option value="">Sélectionnez une matière</option>
-                                    <option value="1">Economie familial</option>
-                                    <option value="2">Physique</option>
-                                    <option value="3">Histoire</option>
-                                    <option value="4">Informatique</option>
-                                    <option value="5">Français</option>
-                                    <option value="6">ECM</option>
-                                    <option value="7">Biologie</option>
-                                    <option value="8">Mathématiques</option>
+                                    <?php foreach ($matieres as $matiere): ?>
+                                        <option value="<?= $matiere['id'] ?>"><?= htmlspecialchars($matiere['nom']) ?></option>
+                                    <?php endforeach; ?>
                                 </select>
                             </div>
                             
                             <div class="d-grid gap-2">
-                                <button type="button" class="btn btn-primary" id="addButton">
+                                <button type="submit" class="btn btn-primary">
                                     <i class="fas fa-plus-circle me-2"></i> 
                                     Ajouter l'attribution
                                 </button>
@@ -540,7 +632,7 @@ try {
                             <i class="fas fa-list-check me-2"></i>
                             Liste des attributions
                         </div>
-                        <span class="badge bg-light text-dark">8</span>
+                        <span class="badge bg-light text-dark"><?= count($attributions) ?></span>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -554,134 +646,35 @@ try {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">DT</div>
-                                            Dr. Timbo
-                                        </td>
-                                        <td><span class="subject-badge">Economie familial</span></td>
-                                        <td><span class="badge badge-date">15/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">OC</div>
-                                            Prof. Oumou Cisse
-                                        </td>
-                                        <td><span class="subject-badge">Physique</span></td>
-                                        <td><span class="badge badge-date">14/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">ST</div>
-                                            Dr. Salim Traore
-                                        </td>
-                                        <td><span class="subject-badge">Histoire</span></td>
-                                        <td><span class="badge badge-date">13/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">IK</div>
-                                            Prof. Ibrahima Kone
-                                        </td>
-                                        <td><span class="subject-badge">Informatique</span></td>
-                                        <td><span class="badge badge-date">12/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">MS</div>
-                                            Dr. Moussa Sogoba
-                                        </td>
-                                        <td><span class="subject-badge">Français</span></td>
-                                        <td><span class="badge badge-date">10/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">AT</div>
-                                            Prof. Aizidini Toure
-                                        </td>
-                                        <td><span class="subject-badge">ECM</span></td>
-                                        <td><span class="badge badge-date">09/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">IT</div>
-                                            Prof. Issou Traore
-                                        </td>
-                                        <td><span class="subject-badge">Biologie</span></td>
-                                        <td><span class="badge badge-date">08/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <td class="fw-semibold d-flex align-items-center">
-                                            <div class="teacher-avatar">KC</div>
-                                            Prof. Kadi Coulibaly
-                                        </td>
-                                        <td><span class="subject-badge">Mathématiques</span></td>
-                                        <td><span class="badge badge-date">05/05/2023</span></td>
-                                        <td class="text-end action-buttons">
-                                            <button class="btn btn-sm btn-warning" title="Modifier">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-sm btn-danger" title="Supprimer">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </td>
-                                    </tr>
+                                    <?php if (empty($attributions)): ?>
+                                        <tr>
+                                            <td colspan="4" class="text-center py-4">
+                                                <div class="empty-state">
+                                                    <i class="fas fa-inbox"></i>
+                                                    <p>Aucune attribution trouvée</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php else: ?>
+                                        <?php foreach ($attributions as $attribution): ?>
+                                            <tr>
+                                                <td class="fw-semibold d-flex align-items-center">
+                                                    <div class="teacher-avatar"><?= strtoupper(substr($attribution['enseignant_nom'], 0, 2)) ?></div>
+                                                    <?= htmlspecialchars($attribution['enseignant_nom']) ?>
+                                                </td>
+                                                <td><span class="subject-badge"><?= htmlspecialchars($attribution['matiere_nom']) ?></span></td>
+                                                <td><span class="badge badge-date"><?= date('d/m/Y', strtotime($attribution['date_attribution'])) ?></span></td>
+                                                <td class="text-end action-buttons">
+                                                    <button class="btn btn-sm btn-warning" title="Modifier" onclick="editAttribution(<?= $attribution['id'] ?>)">
+                                                        <i class="fas fa-edit"></i>
+                                                    </button>
+                                                    <button class="btn btn-sm btn-danger" title="Supprimer" onclick="deleteAttribution(<?= $attribution['id'] ?>)">
+                                                        <i class="fas fa-trash"></i>
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
                                 </tbody>
                             </table>
                         </div>
@@ -735,56 +728,26 @@ try {
             var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
                 return new bootstrap.Tooltip(tooltipTriggerEl);
             });
-            
-            // Gestion de l'ajout
-            document.getElementById('addButton').addEventListener('click', function() {
-                const enseignantSelect = document.querySelector('select[name="enseignant_id"]');
-                const matiereSelect = document.querySelector('select[name="matiere_id"]');
-                
-                if (!enseignantSelect.value || !matiereSelect.value) {
-                    // Créer une notification d'erreur
-                    const errorAlert = document.createElement('div');
-                    errorAlert.className = 'alert alert-danger alert-dismissible fade show';
-                    errorAlert.innerHTML = `
-                        <i class="fas fa-exclamation-circle me-2"></i>
-                        <strong>Erreur:</strong> Veuillez sélectionner un enseignant et une matière.
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    `;
-                    
-                    document.querySelector('.app-container').insertBefore(errorAlert, document.querySelector('.row'));
-                    
-                    // Faire pulser les champs vides
-                    if (!enseignantSelect.value) {
-                        enseignantSelect.classList.add('is-invalid');
-                        setTimeout(() => enseignantSelect.classList.remove('is-invalid'), 2000);
-                    }
-                    
-                    if (!matiereSelect.value) {
-                        matiereSelect.classList.add('is-invalid');
-                        setTimeout(() => matiereSelect.classList.remove('is-invalid'), 2000);
-                    }
-                    
-                    return;
-                }
-                
-                const enseignantText = enseignantSelect.options[enseignantSelect.selectedIndex].text;
-                const matiereText = matiereSelect.options[matiereSelect.selectedIndex].text;
-                
-                // Afficher une alerte de succès
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'alert alert-success alert-dismissible fade show';
-                alertDiv.innerHTML = `
-                    <i class="fas fa-check-circle me-2"></i>
-                    <strong>Succès:</strong> L'attribution de <strong>${matiereText}</strong> à <strong>${enseignantText}</strong> a été enregistrée.
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                `;
-                
-                document.querySelector('.app-container').insertBefore(alertDiv, document.querySelector('.row'));
-                
-                // Réinitialiser le formulaire
-                document.getElementById('attributionForm').reset();
-            });
         });
+        
+        // Fonction pour supprimer une attribution
+        function deleteAttribution(id) {
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette attribution ?')) {
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.innerHTML = `
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" value="${id}">
+                `;
+                document.body.appendChild(form);
+                form.submit();
+            }
+        }
+        
+        // Fonction pour modifier une attribution (à implémenter)
+        function editAttribution(id) {
+            alert('Fonction de modification à implémenter pour l\'ID: ' + id);
+        }
     </script>
 </body>
 </html>
