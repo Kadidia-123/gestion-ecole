@@ -79,6 +79,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
                 
+            case 'edit':
+                try {
+                    $id = $_POST['id'];
+                    $enseignant_id = $_POST['enseignant_id'];
+                    $matiere_id = $_POST['matiere_id'];
+                    
+                    // Vérifier si l'attribution existe déjà (sauf pour l'ID actuel)
+                    $stmt = $pdo->prepare("SELECT id FROM attribution_cours WHERE enseignant_id = ? AND matiere_id = ? AND id != ?");
+                    $stmt->execute([$enseignant_id, $matiere_id, $id]);
+                    
+                    if ($stmt->fetch()) {
+                        $error_message = "Cette attribution existe déjà.";
+                    } else {
+                        // Modifier l'attribution
+                        $stmt = $pdo->prepare("UPDATE attribution_cours SET enseignant_id = ?, matiere_id = ? WHERE id = ?");
+                        $stmt->execute([$enseignant_id, $matiere_id, $id]);
+                        
+                        header('Location: attribution_cours.php?updated=1');
+                        exit();
+                    }
+                } catch (PDOException $e) {
+                    $error_message = "Erreur lors de la modification : " . $e->getMessage();
+                }
+                break;
+                
             case 'delete':
                 try {
                     $id = $_POST['id'];
@@ -92,6 +117,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 break;
         }
+    }
+}
+
+// Récupérer les données d'une attribution pour modification
+$attribution_to_edit = null;
+if (isset($_GET['edit'])) {
+    try {
+        $edit_id = $_GET['edit'];
+        $stmt = $pdo->prepare("
+            SELECT a.id, a.enseignant_id, a.matiere_id, a.date_attribution,
+                   CONCAT(e.nom, ' ', e.prenom) as enseignant_nom,
+                   m.nom as matiere_nom
+            FROM attribution_cours a
+            JOIN enseignants e ON a.enseignant_id = e.id
+            JOIN matieres m ON a.matiere_id = m.id
+            WHERE a.id = ?
+        ");
+        $stmt->execute([$edit_id]);
+        $attribution_to_edit = $stmt->fetch();
+    } catch (PDOException $e) {
+        $error_message = "Erreur lors de la récupération : " . $e->getMessage();
     }
 }
 ?>
@@ -535,6 +581,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
         
+        <?php if (isset($_GET['updated'])): ?>
+            <div class="alert alert-success d-flex align-items-center">
+                <i class="fas fa-check-circle me-3 fa-2x"></i>
+                <div>
+                    <h5 class="alert-heading mb-1">Succès</h5>
+                    <p class="mb-0">L'attribution a été modifiée avec succès.</p>
+                </div>
+            </div>
+        <?php endif; ?>
+        
         <div class="alert alert-info d-flex align-items-center">
             <i class="fas fa-lightbulb me-3 fa-2x"></i>
             <div>
@@ -665,7 +721,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <td><span class="subject-badge"><?= htmlspecialchars($attribution['matiere_nom']) ?></span></td>
                                                 <td><span class="badge badge-date"><?= date('d/m/Y', strtotime($attribution['date_attribution'])) ?></span></td>
                                                 <td class="text-end action-buttons">
-                                                    <button class="btn btn-sm btn-warning" title="Modifier" onclick="editAttribution(<?= $attribution['id'] ?>)">
+                                                    <button class="btn btn-sm btn-warning" title="Modifier" 
+                                                            onclick="editAttribution(<?= $attribution['id'] ?>, '<?= htmlspecialchars($attribution['enseignant_nom']) ?>', '<?= htmlspecialchars($attribution['matiere_nom']) ?>')">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
                                                     <button class="btn btn-sm btn-danger" title="Supprimer" onclick="deleteAttribution(<?= $attribution['id'] ?>)">
@@ -719,6 +776,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </a>
     </div>
 
+    <!-- Modal de modification -->
+    <div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editModalLabel">
+                        <i class="fas fa-edit me-2"></i>Modifier l'attribution
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form method="POST" id="editForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="edit">
+                        <input type="hidden" name="id" id="edit_id">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Enseignant</label>
+                            <select name="enseignant_id" id="edit_enseignant_id" class="form-select" required>
+                                <option value="">Sélectionnez un enseignant</option>
+                                <?php foreach ($enseignants as $enseignant): ?>
+                                    <option value="<?= $enseignant['id'] ?>"><?= htmlspecialchars($enseignant['nom'] . ' ' . $enseignant['prenom']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Matière</label>
+                            <select name="matiere_id" id="edit_matiere_id" class="form-select" required>
+                                <option value="">Sélectionnez une matière</option>
+                                <?php foreach ($matieres as $matiere): ?>
+                                    <option value="<?= $matiere['id'] ?>"><?= htmlspecialchars($matiere['nom']) ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                            <i class="fas fa-times me-2"></i>Annuler
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Enregistrer les modifications
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -744,9 +849,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
-        // Fonction pour modifier une attribution (à implémenter)
-        function editAttribution(id) {
-            alert('Fonction de modification à implémenter pour l\'ID: ' + id);
+        // Fonction pour modifier une attribution
+        function editAttribution(id, enseignantNom, matiereNom) {
+            // Remplir le formulaire de modification
+            document.getElementById('edit_id').value = id;
+            
+            // Trouver et sélectionner l'enseignant correspondant
+            const enseignantSelect = document.getElementById('edit_enseignant_id');
+            for (let option of enseignantSelect.options) {
+                if (option.textContent.trim() === enseignantNom) {
+                    enseignantSelect.value = option.value;
+                    break;
+                }
+            }
+            
+            // Trouver et sélectionner la matière correspondante
+            const matiereSelect = document.getElementById('edit_matiere_id');
+            for (let option of matiereSelect.options) {
+                if (option.textContent.trim() === matiereNom) {
+                    matiereSelect.value = option.value;
+                    break;
+                }
+            }
+            
+            // Ouvrir la modal
+            const editModal = new bootstrap.Modal(document.getElementById('editModal'));
+            editModal.show();
         }
     </script>
 </body>
