@@ -2,6 +2,8 @@
 require 'config.php';
 session_start();
 
+
+
 // Vérifier et créer la colonne annee_scolaire si elle n'existe pas
 try {
     $check_column = $pdo->query("SHOW COLUMNS FROM notes LIKE 'annee_scolaire'")->fetch();
@@ -43,6 +45,7 @@ function getAnneeLabel($annee) {
 
 // AJOUTER une note
 if ($_POST['action'] ?? '' == 'add_note') {
+    
     $eleve_id = $_POST['eleve_id'] ?? '';
     $matiere_id = $_POST['matiere_id'] ?? '';
     $periode = $_POST['periode'] ?? '';
@@ -78,10 +81,11 @@ if ($_POST['action'] ?? '' == 'add_note') {
 }
 
 // MODIFIER une note
-if ($_POST['action'] ?? '' == 'edit_note') {
+elseif ($_POST['action'] ?? '' == 'edit_note') {
     $note_id = $_POST['note_id'] ?? '';
     $eleve_id = $_POST['eleve_id'] ?? '';
     $matiere_id = $_POST['matiere_id'] ?? '';
+    $periode = $_POST['periode'] ?? '';
     $note = $_POST['note'] ?? null;
     $note_composition = $_POST['note_composition'] ?? null;
     $note_classe = $_POST['note_classe'] ?? null;
@@ -89,10 +93,11 @@ if ($_POST['action'] ?? '' == 'edit_note') {
     $annee_scolaire = $_POST['annee_scolaire'] ?? '';
 
     try {
-        $sql = "UPDATE notes SET note = ?, note_composition = ?, note_classe = ?, commentaire = ?, annee_scolaire = ?
+        // Modification simple - pas de vérification de doublons nécessaire
+        $sql = "UPDATE notes SET eleve_id = ?, matiere_id = ?, periode = ?, note = ?, note_composition = ?, note_classe = ?, commentaire = ?, annee_scolaire = ?
                 WHERE id = ?";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute([$note, $note_composition, $note_classe, $commentaire, $annee_scolaire, $note_id]);
+        $stmt->execute([$eleve_id, $matiere_id, $periode, $note, $note_composition, $note_classe, $commentaire, $annee_scolaire, $note_id]);
         
         $_SESSION['message'] = ['type' => 'success', 'text' => 'Note modifiée avec succès!'];
     } catch (Exception $e) {
