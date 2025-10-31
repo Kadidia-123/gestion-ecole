@@ -50,7 +50,9 @@ class EmploisTemps {
                 'enseignant_id' => 3,
                 'enseignant_nom' => 'Traore',
                 'enseignant_prenom' => 'Moussa'
-            ]
+            ],
+            
+           
         ];
     }
     
@@ -231,7 +233,14 @@ class EmploisTemps {
             7 => 'Arts Plastiques',
             8 => 'Musique',
             9 => 'Technologie',
-            10 => 'Philosophie'
+            10 => 'Dictée et questions',
+            11 => 'Lecture',
+            12 => 'Morale',
+            13 => 'ECM',
+            14 => 'EF',
+            15 => 'chimie',
+            16 => 'SVT',
+            17 => 'Philosophie'
         ];
     }
     
@@ -251,7 +260,7 @@ class EmploisTemps {
     }
     
     public function getJours() {
-        return ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+        return ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi'];
     }
     
     public function getHoraires() {
@@ -870,9 +879,7 @@ if (isset($_POST['classe_id']) && isset($_POST['jour'])) {
                                     <a href="emplois_temps.php" class="btn btn-secondary">
                                         <i class="fas fa-arrow-left me-1"></i>Retour
                                     </a>
-                                    <button type="button" class="btn btn-info" onclick="actualiserDisponibilite()">
-                                        <i class="fas fa-sync-alt me-1"></i>Voir les créneaux disponibles
-                                    </button>
+                                    
                                 </div>
                             </form>
                         </div>

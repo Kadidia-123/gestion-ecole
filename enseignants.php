@@ -545,11 +545,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update'])) {
                 <div>
                     Total: <strong><?= count($enseignants) ?></strong> enseignant(s)
                 </div>
-                <div>
-                    <a href="#" class="btn btn-sm btn-secondary">
-                        <i class="fas fa-file-export"></i> Exporter
-                    </a>
-                </div>
+                
             </div>
         </div>
     </div>

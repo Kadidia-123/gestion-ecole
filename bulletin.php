@@ -66,7 +66,7 @@ try {
     $ecole_info = $pdo->query("SELECT nom, adresse, ville, code_postal, logo FROM ecole LIMIT 1")->fetch();
 } catch (Exception $e) {
     $ecole_info = [
-        'nom' => 'École Primaire',
+        'nom' => 'École Sounké TRAORE',
         'adresse' => 'Garantiguibougou',
         'ville' => 'Bamako',
         'code_postal' => '300 Kalaban',
