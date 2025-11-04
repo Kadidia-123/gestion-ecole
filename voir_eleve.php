@@ -370,8 +370,14 @@ try {
         <?php if ($eleve): ?>
         <div class="profile-container">
           <div class="profile-header">
-            <?php if (!empty($eleve['photo'])): ?>
-              <img src="<?= htmlspecialchars($eleve['photo']) ?>" class="profile-photo" alt="Photo de <?= htmlspecialchars($eleve['prenom']) ?>">
+            <?php 
+            $photoUrl = !empty($eleve['photo']) ? getStudentPhotoUrl($eleve['photo']) : null;
+            if ($photoUrl): ?>
+              <img src="<?= htmlspecialchars($photoUrl) ?>" class="profile-photo" alt="Photo de <?= htmlspecialchars($eleve['prenom'] ?? '') ?>"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+              <div class="profile-photo-placeholder" style="display: none;">
+                <i class="fas fa-user-graduate"></i>
+              </div>
             <?php else: ?>
               <div class="profile-photo-placeholder">
                 <i class="fas fa-user-graduate"></i>
@@ -379,10 +385,10 @@ try {
             <?php endif; ?>
             
             <div class="profile-info">
-              <h1 class="profile-name"><?= htmlspecialchars($eleve['prenom'] . ' ' . htmlspecialchars($eleve['nom'])) ?></h1>
+              <h1 class="profile-name"><?= htmlspecialchars(trim(($eleve['prenom'] ?? '') . ' ' . ($eleve['nom'] ?? ''))) ?></h1>
               
               <div class="profile-meta">
-                <span><i class="fas fa-id-card"></i> <?= htmlspecialchars($eleve['matricule']) ?></span>
+                <span><i class="fas fa-id-card"></i> <?= !empty($eleve['matricule']) ? htmlspecialchars($eleve['matricule']) : 'N/A' ?></span>
                 <?php if (!empty($eleve['classe_nom'])): ?>
                   <span class="profile-badge">
                     <i class="fas fa-users"></i> <?= htmlspecialchars($eleve['classe_nom']) ?>

@@ -604,10 +604,16 @@ try {
                                 <?php foreach ($eleves as $eleve): ?>
                                 <tr>
                                     <td>
-                                        <?php if (!empty($eleve['photo'])): ?>
-                                            <img src="<?= htmlspecialchars($eleve['photo']) ?>" 
+                                        <?php 
+                                        $photoUrl = !empty($eleve['photo']) ? getStudentPhotoUrl($eleve['photo']) : null;
+                                        if ($photoUrl): ?>
+                                            <img src="<?= htmlspecialchars($photoUrl) ?>" 
                                                  class="student-photo" 
-                                                 alt="Photo de <?= htmlspecialchars($eleve['prenom']) ?>">
+                                                 alt="Photo de <?= htmlspecialchars($eleve['prenom'] ?? '') ?>"
+                                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                            <div class="photo-placeholder" style="display: none;">
+                                                <i class="fas fa-user"></i>
+                                            </div>
                                         <?php else: ?>
                                             <div class="photo-placeholder">
                                                 <i class="fas fa-user"></i>
@@ -615,18 +621,22 @@ try {
                                         <?php endif; ?>
                                     </td>
                                     <td>
-                                        <strong><?= htmlspecialchars($eleve['matricule']) ?></strong>
+                                        <strong><?= !empty($eleve['matricule']) ? htmlspecialchars($eleve['matricule']) : '<span class="text-muted">N/A</span>' ?></strong>
                                     </td>
                                     <td>
-                                        <strong><?= htmlspecialchars($eleve['prenom'] . ' ' . $eleve['nom']) ?></strong>
+                                        <strong><?= htmlspecialchars(trim(($eleve['prenom'] ?? '') . ' ' . ($eleve['nom'] ?? ''))) ?></strong>
                                     </td>
                                     <td>
                                         <?= !empty($eleve['email']) ? htmlspecialchars($eleve['email']) : '<span class="text-muted">N/A</span>' ?>
                                     </td>
                                     <td>
-                                        <span class="badge <?= $eleve['genre'] == 'M' ? 'badge-info' : 'badge-warning' ?>">
-                                            <?= $eleve['genre'] == 'M' ? 'Masculin' : 'Féminin' ?>
-                                        </span>
+                                        <?php if (!empty($eleve['genre'])): ?>
+                                            <span class="badge <?= $eleve['genre'] == 'M' ? 'badge-info' : 'badge-warning' ?>">
+                                                <?= $eleve['genre'] == 'M' ? 'Masculin' : 'Féminin' ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="text-muted">Non renseigné</span>
+                                        <?php endif; ?>
                                     </td>
                                     <td>
                                         <?= !empty($eleve['date_naissance']) ? date('d/m/Y', strtotime($eleve['date_naissance'])) : '<span class="text-muted">N/A</span>' ?>
@@ -640,7 +650,7 @@ try {
                                                 <?= htmlspecialchars($eleve['classe_nom']) ?>
                                             </span>
                                             <div class="text-muted small">
-                                                <?= htmlspecialchars($eleve['classe_niveau'] ?? '') ?>
+                                                <?= !empty($eleve['classe_niveau']) ? htmlspecialchars($eleve['classe_niveau']) : '' ?>
                                             </div>
                                         <?php else: ?>
                                             <span class="text-muted">Non affecté</span>

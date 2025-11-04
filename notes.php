@@ -56,6 +56,8 @@ if ($_POST['action'] ?? '' == 'add_note') {
     $annee_scolaire = $_POST['annee_scolaire'] ?? date('Y');
 
     try {
+        error_log("DEBUG notes.php add_note - Élève: $eleve_id, Matière: $matiere_id, Période: '$periode', Année: '$annee_scolaire'");
+        
         // Vérifier si une note existe déjà pour cette période
         $check_sql = "SELECT id FROM notes WHERE eleve_id = ? AND matiere_id = ? AND periode = ? AND annee_scolaire = ?";
         $check_stmt = $pdo->prepare($check_sql);
@@ -63,7 +65,8 @@ if ($_POST['action'] ?? '' == 'add_note') {
         $existing_note = $check_stmt->fetch();
 
         if ($existing_note) {
-            $_SESSION['message'] = ['type' => 'error', 'text' => 'Une note existe déjà pour cette période et cette année scolaire!'];
+            error_log("DEBUG notes.php add_note - Doublon trouvé avec ID: " . $existing_note['id']);
+            $_SESSION['message'] = ['type' => 'error', 'text' => 'Une note existe déjà pour cette période et cette année scolaire! (ID existant: ' . $existing_note['id'] . ') - Si vous voulez modifier, cliquez sur le bouton Modifier dans le tableau.'];
         } else {
             $sql = "INSERT INTO notes (eleve_id, matiere_id, periode, note, note_composition, note_classe, commentaire, annee_scolaire) 
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
@@ -83,6 +86,12 @@ if ($_POST['action'] ?? '' == 'add_note') {
 // MODIFIER une note
 elseif ($_POST['action'] ?? '' == 'edit_note') {
     $note_id = $_POST['note_id'] ?? '';
+    
+    if (empty($note_id)) {
+        $_SESSION['message'] = ['type' => 'error', 'text' => 'Erreur: ID de note manquant pour la modification!'];
+        header("Location: notes.php");
+        exit;
+    }
     $eleve_id = $_POST['eleve_id'] ?? '';
     $matiere_id = $_POST['matiere_id'] ?? '';
     $periode = $_POST['periode'] ?? '';
@@ -93,13 +102,79 @@ elseif ($_POST['action'] ?? '' == 'edit_note') {
     $annee_scolaire = $_POST['annee_scolaire'] ?? '';
 
     try {
-        // Modification simple - pas de vérification de doublons nécessaire
-        $sql = "UPDATE notes SET eleve_id = ?, matiere_id = ?, periode = ?, note = ?, note_composition = ?, note_classe = ?, commentaire = ?, annee_scolaire = ?
-                WHERE id = ?";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$eleve_id, $matiere_id, $periode, $note, $note_composition, $note_classe, $commentaire, $annee_scolaire, $note_id]);
+        // Log pour débogage
+        error_log("DEBUG notes.php edit_note - ID note actuelle: " . $note_id);
+        error_log("DEBUG notes.php edit_note - Élève: $eleve_id, Matière: $matiere_id, Période: '$periode', Année: '$annee_scolaire'");
         
-        $_SESSION['message'] = ['type' => 'success', 'text' => 'Note modifiée avec succès!'];
+        // Vérifier les valeurs actuelles de la note dans la DB
+        $current_note_stmt = $pdo->prepare("SELECT eleve_id, matiere_id, periode, annee_scolaire FROM notes WHERE id = ?");
+        $current_note_stmt->execute([$note_id]);
+        $current_note = $current_note_stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$current_note) {
+            throw new Exception("Note non trouvée avec l'ID: $note_id");
+        }
+        
+        error_log("DEBUG notes.php edit_note - Valeurs actuelles en DB: Élève={$current_note['eleve_id']}, Matière={$current_note['matiere_id']}, Période='{$current_note['periode']}', Année='{$current_note['annee_scolaire']}'");
+        
+        // Normaliser les valeurs pour comparaison
+        $current_eleve = (int)$current_note['eleve_id'];
+        $current_matiere = (int)$current_note['matiere_id'];
+        $current_periode = trim($current_note['periode']);
+        $current_annee = trim($current_note['annee_scolaire']);
+        
+        $new_eleve = (int)$eleve_id;
+        $new_matiere = (int)$matiere_id;
+        $new_periode = trim($periode);
+        $new_annee = trim($annee_scolaire);
+        
+        // Si toutes les valeurs sont identiques, on peut modifier directement sans vérifier les doublons
+        $is_same = (
+            $current_eleve === $new_eleve &&
+            $current_matiere === $new_matiere &&
+            $current_periode === $new_periode &&
+            $current_annee === $new_annee
+        );
+        
+        error_log("DEBUG notes.php edit_note - Comparaison: Élève($current_eleve==$new_eleve), Matière($current_matiere==$new_matiere), Période('$current_periode'=='$new_periode'), Année('$current_annee'=='$new_annee')");
+        error_log("DEBUG notes.php edit_note - is_same: " . ($is_same ? 'TRUE' : 'FALSE'));
+        
+        if ($is_same) {
+            error_log("DEBUG notes.php edit_note - Les valeurs sont identiques, modification autorisée sans vérification doublon");
+            // Pas besoin de vérifier les doublons, on modifie directement
+        } else {
+            error_log("DEBUG notes.php edit_note - Les valeurs ont changé, vérification des doublons...");
+            // Vérifier si une autre note existe déjà avec les mêmes critères (en excluant la note actuelle)
+            $check_sql = "SELECT id FROM notes 
+                          WHERE eleve_id = ? 
+                          AND matiere_id = ? 
+                          AND periode = ? 
+                          AND annee_scolaire = ? 
+                          AND id != ?";
+            $check_stmt = $pdo->prepare($check_sql);
+            $check_stmt->execute([$new_eleve, $new_matiere, $new_periode, $new_annee, $note_id]);
+            $existing_note = $check_stmt->fetch();
+
+            if ($existing_note) {
+                error_log("DEBUG notes.php edit_note - Doublon trouvé avec ID: " . $existing_note['id']);
+                $_SESSION['message'] = ['type' => 'error', 'text' => 'Une note existe déjà pour cette période et cette année scolaire! (ID du doublon: ' . $existing_note['id'] . ')'];
+            } else {
+                error_log("DEBUG notes.php edit_note - Aucun doublon trouvé, modification autorisée");
+            }
+        }
+        
+        if (!isset($_SESSION['message']) || $_SESSION['message']['type'] !== 'error') {
+            error_log("DEBUG notes.php edit_note - Exécution de la requête UPDATE pour ID: $note_id");
+            $sql = "UPDATE notes SET eleve_id = ?, matiere_id = ?, periode = ?, note = ?, note_composition = ?, note_classe = ?, commentaire = ?, annee_scolaire = ?
+                    WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute([$eleve_id, $matiere_id, $periode, $note, $note_composition, $note_classe, $commentaire, $annee_scolaire, $note_id]);
+            
+            error_log("DEBUG notes.php edit_note - Note modifiée avec succès!");
+            $_SESSION['message'] = ['type' => 'success', 'text' => 'Note modifiée avec succès!'];
+        } else {
+            error_log("DEBUG notes.php edit_note - Modification bloquée à cause d'une erreur");
+        }
     } catch (Exception $e) {
         $_SESSION['message'] = ['type' => 'error', 'text' => 'Erreur lors de la modification: ' . $e->getMessage()];
     }
@@ -194,9 +269,20 @@ if ($eleve_id && $matiere_id && $annee_scolaire) {
 
     // Récupérer la note à éditer si demandé
     if ($edit_note_id) {
+        error_log("DEBUG notes.php - Récupération de la note à éditer avec ID: $edit_note_id");
         $stmt = $pdo->prepare("SELECT * FROM notes WHERE id = ?");
         $stmt->execute([$edit_note_id]);
         $note_a_editer = $stmt->fetch();
+        
+        if ($note_a_editer) {
+            error_log("DEBUG notes.php - Note à éditer trouvée: ID={$note_a_editer['id']}, Élève={$note_a_editer['eleve_id']}, Matière={$note_a_editer['matiere_id']}, Période={$note_a_editer['periode']}, Année={$note_a_editer['annee_scolaire']}");
+            // S'assurer que les paramètres URL correspondent à la note à éditer
+            if (!$eleve_id) $eleve_id = $note_a_editer['eleve_id'];
+            if (!$matiere_id) $matiere_id = $note_a_editer['matiere_id'];
+            if (!$annee_scolaire) $annee_scolaire = $note_a_editer['annee_scolaire'];
+        } else {
+            error_log("DEBUG notes.php - ERREUR: Note à éditer non trouvée avec ID: $edit_note_id");
+        }
     }
 }
 

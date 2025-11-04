@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $matricule = trim($_POST['matricule']);
         $dateNaissance = !empty($_POST['date_naissance']) ? $_POST['date_naissance'] : null;
         $lieuNaissance = trim($_POST['lieu_naissance']);
-        $sexe = $_POST['genre'];
+        $genre = !empty($_POST['genre']) ? $_POST['genre'] : null;
         $nationalite = trim($_POST['nationalite']);
         $adresse = trim($_POST['adresse']);
         $telephone = trim($_POST['telephone']);
@@ -85,10 +85,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Déplacer le fichier uploadé
             if (move_uploaded_file($_FILES['photo']['tmp_name'], $targetPath)) {
                 // Supprimer l'ancienne photo si elle existe
-                if (!empty($photo) && file_exists($photo)) {
-                    unlink($photo);
+                if (!empty($photo)) {
+                    // Normaliser le chemin pour la suppression
+                    $oldPhotoPath = strpos($photo, 'uploads/') === 0 ? $photo : __DIR__ . '/uploads/eleves/' . $photo;
+                    if (file_exists($oldPhotoPath)) {
+                        unlink($oldPhotoPath);
+                    }
                 }
-                $photo = $targetPath;
+                // Sauvegarder seulement le nom du fichier pour cohérence avec ajouter_eleve.php
+                $photo = $fileName;
             } else {
                 throw new Exception("Erreur lors de l'upload de la photo");
             }
@@ -448,8 +453,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <div class="form-container">
           <form method="POST" enctype="multipart/form-data">
             <div class="photo-upload">
-              <?php if (!empty($eleve['photo'])): ?>
-                <img src="<?= htmlspecialchars($eleve['photo']) ?>" id="photoPreview" class="photo-preview" alt="Photo de l'élève">
+              <?php 
+              $photoUrl = !empty($eleve['photo']) ? getStudentPhotoUrl($eleve['photo']) : null;
+              if ($photoUrl): ?>
+                <img src="<?= htmlspecialchars($photoUrl) ?>" id="photoPreview" class="photo-preview" alt="Photo de l'élève"
+                     onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                <div class="photo-placeholder" style="display: none;">
+                  <i class="fas fa-user-graduate"></i>
+                </div>
               <?php else: ?>
                 <div id="photoPreview" class="photo-placeholder">
                   <i class="fas fa-user-graduate"></i>
@@ -464,17 +475,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="form-grid">
               <div class="form-group">
                 <label for="nom">Nom *</label>
-                <input type="text" id="nom" name="nom" class="form-control" value="<?= htmlspecialchars($eleve['nom']) ?>" required>
+                <input type="text" id="nom" name="nom" class="form-control" value="<?= htmlspecialchars($eleve['nom'] ?? '') ?>" required>
               </div>
               
               <div class="form-group">
                 <label for="prenom">Prénom *</label>
-                <input type="text" id="prenom" name="prenom" class="form-control" value="<?= htmlspecialchars($eleve['prenom']) ?>" required>
+                <input type="text" id="prenom" name="prenom" class="form-control" value="<?= htmlspecialchars($eleve['prenom'] ?? '') ?>" required>
               </div>
               
               <div class="form-group">
                 <label for="matricule">Matricule *</label>
-                <input type="text" id="matricule" name="matricule" class="form-control" value="<?= htmlspecialchars($eleve['matricule']) ?>" required>
+                <input type="text" id="matricule" name="matricule" class="form-control" value="<?= htmlspecialchars($eleve['matricule'] ?? '') ?>" required>
               </div>
               
               <div class="form-group">

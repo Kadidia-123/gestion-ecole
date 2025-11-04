@@ -4,6 +4,49 @@ function getPhotoPath($eleveId) {
     return file_exists($photoPath) ? $photoPath : UPLOAD_DIR . DEFAULT_PHOTO;
 }
 
+/**
+ * Normalise le chemin de la photo d'un élève
+ * Gère les cas où la photo est stockée comme nom de fichier seul ou avec chemin relatif
+ * Retourne null si le fichier n'existe pas
+ */
+function getStudentPhotoUrl($photo) {
+    if (empty($photo)) {
+        return null;
+    }
+    
+    $normalizedPath = null;
+    
+    // Si le chemin commence déjà par "uploads/eleves/", on le retourne tel quel
+    if (strpos($photo, 'uploads/eleves/') === 0) {
+        $normalizedPath = $photo;
+    }
+    // Si le chemin commence par "uploads/" mais pas "uploads/eleves/", on corrige
+    elseif (strpos($photo, 'uploads/') === 0) {
+        // Extraire le nom du fichier
+        $fileName = basename($photo);
+        $normalizedPath = 'uploads/eleves/' . $fileName;
+    }
+    // Si c'est un chemin absolu ou contient des séparateurs de chemin
+    elseif (strpos($photo, '/') === 0 || strpos($photo, ':\\') !== false || strpos($photo, '://') !== false) {
+        // Extraire juste le nom du fichier
+        $fileName = basename($photo);
+        $normalizedPath = 'uploads/eleves/' . $fileName;
+    }
+    // Sinon, c'est juste un nom de fichier
+    else {
+        $normalizedPath = 'uploads/eleves/' . $photo;
+    }
+    
+    // Vérifier si le fichier existe
+    $fullPath = __DIR__ . '/' . $normalizedPath;
+    if (file_exists($fullPath)) {
+        return $normalizedPath;
+    }
+    
+    // Si le fichier n'existe pas, retourner null pour afficher le placeholder
+    return null;
+}
+
 function sanitize($data) {
     return htmlspecialchars(trim($data), ENT_QUOTES, 'UTF-8');
 }
